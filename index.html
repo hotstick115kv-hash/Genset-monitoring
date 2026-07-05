@@ -244,6 +244,16 @@ function matchLocation(groupText, descText){
   return pool.find(l=> descText && descText.includes(l.name)) || null;
 }
 
+function parseTimestamp(ts){
+  if(!ts) return null;
+  const commaIdx = ts.indexOf(',');
+  const dateStr = commaIdx>=0 ? ts.slice(0,commaIdx).trim() : ts.trim();
+  const timeStr = commaIdx>=0 ? ts.slice(commaIdx+1).trim() : null;
+  const d = parseThaiDate(dateStr);
+  const t = timeStr ? parseTime(timeStr) : null;
+  return combine(d,t);
+}
+
 let lastEvents = [];
 
 function loadSheetJSONP(){
@@ -254,7 +264,7 @@ function loadSheetJSONP(){
     window[cbName] = function(json){
       done = true; cleanup(); resolve(json);
     };
-    const url = 'https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:json;responseHandler:'+cbName+'&sheet='+encodeURIComponent(SHEET_NAME)+'&_='+Date.now();
+    const url = 'https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:json;responseHandler:'+cbName+'&sheet='+encodeURIComponent(SHEET_NAME)+'&headers=1&_='+Date.now();
     const script = document.createElement('script');
     script.src = url;
     script.onerror = function(){ if(!done){ cleanup(); reject(new Error('โหลดข้อมูลจากชีตไม่สำเร็จ (เช็คว่าชีตแชร์เป็น "ทุกคนที่มีลิงก์ดูได้" หรือยัง)')); } };
@@ -287,6 +297,7 @@ async function fetchData(){
       ts: findField(fields,'ประทับเวลา'),
       group: findField(fields,'สถานที่ปฏิบัติงาน'),
       desc: findField(fields,'สถานที่/อาคาร') || findField(fields,'ทีมงาน'),
+      desc2: findField(fields,'คอลัมน์'),
       status: findField(fields,'สถานะเดิน'),
       date: findField(fields,'วันที่'),
       start: findField(fields,'เวลาจ่ายโหลด'),
@@ -297,7 +308,7 @@ async function fetchData(){
     const events = [];
     for(const row of rows){
       const groupText = fMap.group ? (row[fMap.group]||'') : '';
-      const descText = fMap.desc ? (row[fMap.desc]||'') : '';
+      const descText = ((fMap.desc ? (row[fMap.desc]||'') : '') + ' ' + (fMap.desc2 ? (row[fMap.desc2]||'') : '')).trim();
       const loc = matchLocation(groupText, descText);
       if(!loc) continue;
       const dateObj = parseThaiDate(fMap.date ? row[fMap.date] : null);
@@ -307,8 +318,9 @@ async function fetchData(){
       const isRunning = status.includes('จ่ายโหลด');
       const startDt = isRunning ? combine(dateObj, startT) : null;
       const endDt = isRunning && endT ? combine(dateObj, endT) : null;
+      const recordTime = parseTimestamp(fMap.ts ? row[fMap.ts] : '') || startDt || dateObj && combine(dateObj,null);
       events.push({
-        loc, status, isRunning,
+        loc, status, isRunning, recordTime,
         ts: fMap.ts ? row[fMap.ts] : '',
         start: startDt, end: endDt,
         load: fMap.load ? row[fMap.load] : '',
@@ -333,17 +345,10 @@ async function fetchData(){
 }
 
 function currentStatus(loc, now){
-  const evs = lastEvents.filter(e=>e.loc===loc && e.start).sort((a,b)=>a.start-b.start);
-  let active = null;
-  for(const e of evs){
-    if(e.start<=now && (!e.end || e.end>=now)) active = e;
-    else if(e.start<=now) active = active; 
-  }
-  const past = evs.filter(e=>e.start<=now);
-  const latest = past.length ? past[past.length-1] : null;
-  if(latest && (!latest.end || latest.end>=now)) return {state:'red', ev:latest};
-  if(evs.length) return {state:'green', ev:latest};
-  return {state:'gray', ev:null};
+  const evs = lastEvents.filter(e=>e.loc===loc && e.recordTime && e.recordTime<=now).sort((a,b)=>a.recordTime-b.recordTime);
+  if(!evs.length) return {state:'gray', ev:null};
+  const latest = evs[evs.length-1];
+  return {state: latest.isRunning ? 'red' : 'green', ev: latest};
 }
 
 function renderPanels(now){
