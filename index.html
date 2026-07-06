@@ -177,6 +177,11 @@
     <div id="logTable"><div class="empty-note">กำลังโหลดข้อมูล...</div></div>
   </section>
 
+  <section class="log-section" style="margin-top:16px;">
+    <h2 style="cursor:pointer;" id="debugToggle">ตรวจสอบข้อมูลดิบ (คลิกเพื่อขยาย) <span id="debugCount" class="mono" style="font-size:11px;color:var(--text-muted);"></span></h2>
+    <div id="debugPanel" style="display:none;"></div>
+  </section>
+
   <footer>
     ข้อมูลดึงจาก Google ชีตอัตโนมัติทุก 60 วินาที &middot;
     <a href="https://docs.google.com/spreadsheets/d/1llqDzsCGOApQzd_csvtZIjDn8B9z36inRCrOWsyJ4QY/edit" target="_blank">เปิดชีตต้นฉบับ</a>
@@ -234,14 +239,20 @@ function combine(dateObj,timeObj){
 }
 function findField(fields,kw){ return fields.find(f=>f && f.includes(kw)); }
 
+function norm(s){
+  return String(s||'').normalize('NFC').replace(/\s+/g,'').trim();
+}
+
 function matchLocation(groupText, descText){
+  const g = norm(groupText);
+  const d = norm(descText);
   let group = null;
-  if(/กองบิน/.test(groupText)) group='wing7';
-  else if(/รัชชประภา|เขื่อน/.test(groupText)) group='rp';
+  if(g.includes('กองบิน')) group='wing7';
+  else if(g.includes('รัชชประภา') || g.includes('เขื่อน')) group='rp';
   const pool = group ? LOCATIONS.filter(l=>l.group===group) : LOCATIONS;
-  const hit = pool.find(l=> descText && descText.includes(l.key));
+  const hit = pool.find(l=> d && d.includes(norm(l.key)));
   if(hit) return hit;
-  return pool.find(l=> descText && descText.includes(l.name)) || null;
+  return pool.find(l=> d && d.includes(norm(l.name))) || null;
 }
 
 function parseTimestamp(ts){
@@ -296,8 +307,6 @@ async function fetchData(){
     const fMap = {
       ts: findField(fields,'ประทับเวลา'),
       group: findField(fields,'สถานที่ปฏิบัติงาน'),
-      desc: findField(fields,'สถานที่/อาคาร') || findField(fields,'ทีมงาน'),
-      desc2: findField(fields,'คอลัมน์'),
       status: findField(fields,'สถานะเดิน'),
       date: findField(fields,'วันที่'),
       start: findField(fields,'เวลาจ่ายโหลด'),
@@ -305,17 +314,25 @@ async function fetchData(){
       load: findField(fields,'พิกัดโหลด'),
       note: findField(fields,'หมายเหตุ') || findField(fields,'หมายเห'),
     };
+    const missingCols = Object.entries(fMap).filter(([k,v])=>!v).map(([k])=>k);
     const events = [];
+    const diag = [];
+    let rowNum = 1;
     for(const row of rows){
+      rowNum++;
       const groupText = fMap.group ? (row[fMap.group]||'') : '';
-      const descText = ((fMap.desc ? (row[fMap.desc]||'') : '') + ' ' + (fMap.desc2 ? (row[fMap.desc2]||'') : '')).trim();
-      const loc = matchLocation(groupText, descText);
+      // Scan the ENTIRE row's text for the location match, not just specific named
+      // columns — the form's columns shift as questions are added/renamed, so this
+      // is far more robust than depending on exact header names.
+      const fullRowText = fields.map(f=>row[f]||'').join(' ');
+      const loc = matchLocation(groupText || fullRowText, fullRowText);
+      diag.push({rowNum, groupText, descText: fullRowText, matched: loc ? (loc.groupLabel.replace('ณ. ','')+' / '+loc.name) : null});
       if(!loc) continue;
       const dateObj = parseThaiDate(fMap.date ? row[fMap.date] : null);
       const startT = parseTime(fMap.start ? row[fMap.start] : null);
       const endT = parseTime(fMap.end ? row[fMap.end] : null);
       const status = fMap.status ? (row[fMap.status]||'').trim() : '';
-      const isRunning = status.includes('จ่ายโหลด');
+      const isRunning = status ? status.includes('จ่ายโหลด') : /จ่ายโหลด/.test(fullRowText) && !/standby/i.test(status);
       const startDt = isRunning ? combine(dateObj, startT) : null;
       const endDt = isRunning && endT ? combine(dateObj, endT) : null;
       const recordTime = parseTimestamp(fMap.ts ? row[fMap.ts] : '') || startDt || dateObj && combine(dateObj,null);
@@ -333,7 +350,8 @@ async function fetchData(){
     lastEvents = events;
     document.getElementById('errorBanner').style.display='none';
     document.getElementById('liveDot').classList.remove('stale');
-    document.getElementById('syncText').textContent = 'อัปเดตล่าสุด ' + new Date().toLocaleTimeString('th-TH');
+    document.getElementById('syncText').textContent = 'อัปเดตล่าสุด ' + new Date().toLocaleTimeString('th-TH') + ' (อ่าน '+rows.length+' แถว จับคู่ได้ '+events.length+')';
+    renderDebug(fields, missingCols, diag);
     render();
   }catch(err){
     const banner = document.getElementById('errorBanner');
@@ -343,6 +361,28 @@ async function fetchData(){
     document.getElementById('syncText').textContent = 'เชื่อมต่อไม่สำเร็จ';
   }
 }
+
+function renderDebug(fields, missingCols, diag){
+  const countEl = document.getElementById('debugCount');
+  const matchedN = diag.filter(d=>d.matched).length;
+  countEl.textContent = '('+matchedN+'/'+diag.length+' แถวจับคู่สำเร็จ)';
+  const panel = document.getElementById('debugPanel');
+  let html = '';
+  if(missingCols.length){
+    html += '<div class="empty-note" style="color:var(--red-text);">ไม่พบคอลัมน์ที่คาดไว้: '+missingCols.join(', ')+' — ชื่อหัวคอลัมน์ในชีตอาจเปลี่ยนไป</div>';
+  }
+  html += '<div class="empty-note">หัวคอลัมน์ที่อ่านได้จากชีต: '+fields.filter(Boolean).join(' | ')+'</div>';
+  html += '<table class="log-table"><thead><tr><th>แถว</th><th>สถานที่ปฏิบัติงาน</th><th>สถานที่/อาคาร (รวม)</th><th>จับคู่ได้กับ</th></tr></thead><tbody>';
+  diag.forEach(d=>{
+    html += '<tr><td>'+d.rowNum+'</td><td>'+(d.groupText||'-')+'</td><td>'+(d.descText||'-')+'</td><td>'+(d.matched?('<span class="badge-inline green">'+d.matched+'</span>'):('<span class="badge-inline red">ไม่พบ</span>'))+'</td></tr>';
+  });
+  html += '</tbody></table>';
+  panel.innerHTML = html;
+}
+document.getElementById('debugToggle').addEventListener('click', function(){
+  const p = document.getElementById('debugPanel');
+  p.style.display = p.style.display==='none' ? 'block' : 'none';
+});
 
 function currentStatus(loc, now){
   const evs = lastEvents.filter(e=>e.loc===loc && e.recordTime && e.recordTime<=now).sort((a,b)=>a.recordTime-b.recordTime);
