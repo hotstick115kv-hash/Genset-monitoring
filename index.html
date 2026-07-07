@@ -102,6 +102,7 @@
   .load-bar-track{width:100%;height:5px;background:var(--grid-line);border-radius:3px;overflow:hidden;}
   .load-bar-fill{height:100%;border-radius:3px;transition:width 0.4s ease;}
   .load-bar-text{font-size:10px;color:var(--text-muted);margin-top:3px;font-family:'IBM Plex Mono',monospace;}
+  .phase-line{display:flex;gap:10px;margin-top:5px;font-size:10px;color:var(--teal);font-family:'IBM Plex Mono',monospace;}
 
   .chart-section{background:var(--bg-panel);border:1px solid var(--border-soft);border-radius:8px;padding:18px 20px;margin-bottom:28px;}
   .chart-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
@@ -313,6 +314,17 @@ function cellText(row, fields, i){
   return '';
 }
 
+function findPhaseCols(fields, letter){
+  // Matches "เฟส A", "เฟส_A", "[เฟส A]", "เฟสA", etc. — tolerant of the
+  // punctuation/spacing variations that appear as the form gets edited over time.
+  const re = new RegExp('เฟส.{0,4}'+letter, 'i');
+  return fields.filter(f => f && re.test(f));
+}
+function firstNonEmpty(row, cols){
+  for(const c of cols){ if(row[c]!==undefined && row[c]!==null && String(row[c]).trim()!==''){ return row[c]; } }
+  return '';
+}
+
 async function fetchData(){
   try{
     const json = await loadSheetJSONP();
@@ -333,6 +345,9 @@ async function fetchData(){
       start: findField(fields,'เวลาจ่ายโหลด'),
       end: findField(fields,'ปลดออกจากระบบ'),
       load: findField(fields,'พิกัดโหลด'),
+      phaseACols: findPhaseCols(fields,'A'),
+      phaseBCols: findPhaseCols(fields,'B'),
+      phaseCCols: findPhaseCols(fields,'C'),
       note: findField(fields,'หมายเหตุ') || findField(fields,'หมายเห'),
     };
     if(!fMap.ts || !fMap.group){
@@ -365,6 +380,9 @@ async function fetchData(){
         ts: fMap.ts ? row[fMap.ts] : '',
         start: startDt, end: endDt,
         load: fMap.load ? row[fMap.load] : '',
+        phaseA: firstNonEmpty(row, fMap.phaseACols),
+        phaseB: firstNonEmpty(row, fMap.phaseBCols),
+        phaseC: firstNonEmpty(row, fMap.phaseCCols),
         note: fMap.note ? row[fMap.note] : '',
         dateStr: fMap.date ? row[fMap.date] : '',
         startStr: fMap.start ? row[fMap.start] : '',
@@ -470,9 +488,20 @@ function renderPanels(now){
           + '<div class="load-bar-text">'+loadVal+' / '+l.kw+' kW ('+pctUsed.toFixed(0)+'%)</div>'
           + '</div>'
         : '';
+      const cleanNum = v => String(v||'').replace(/[^0-9.]/g,'');
+      const pA = st.state==='red' && st.ev ? cleanNum(st.ev.phaseA) : '';
+      const pB = st.state==='red' && st.ev ? cleanNum(st.ev.phaseB) : '';
+      const pC = st.state==='red' && st.ev ? cleanNum(st.ev.phaseC) : '';
+      const phaseLine = (pA||pB||pC)
+        ? '<div class="phase-line">'
+          + (pA? ('<span>L1 '+pA+' A</span>'):'')
+          + (pB? ('<span>L2 '+pB+' A</span>'):'')
+          + (pC? ('<span>L3 '+pC+' A</span>'):'')
+          + '</div>'
+        : '';
       rows += '<div class="loc-row">'
         + '<span class="led '+(pillClass==='gray'?'':pillClass)+'"></span>'
-        + '<div class="loc-info"><div class="loc-name">'+l.name+'</div><div class="loc-sub">'+l.kw+' kW &middot; '+l.key+'</div>'+loadBar+'</div>'
+        + '<div class="loc-info"><div class="loc-name">'+l.name+'</div><div class="loc-sub">'+l.kw+' kW &middot; '+l.key+'</div>'+loadBar+phaseLine+'</div>'
         + '<div class="loc-status"><span class="status-pill '+pillClass+'">'+pillText+'</span></div></div>';
     });
     panel.innerHTML = '<div class="panel-head"><h2>'+label+'</h2><span class="kw-total">รวม '+totalKw+' kW</span></div>'+rows;
