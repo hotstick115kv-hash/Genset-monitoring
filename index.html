@@ -119,7 +119,7 @@
     position:relative;flex:1;height:22px;border-radius:3px;
     background:linear-gradient(90deg,var(--grid-line) 0,var(--grid-line) 1px,transparent 1px);
     background-size:calc(100%/10) 100%;
-    background-color:var(--bg-panel-alt);
+    background-color:rgba(52,211,153,0.06);
     border:1px solid var(--border-soft);
     overflow:hidden;
   }
@@ -174,11 +174,14 @@
 
   <section class="chart-section">
     <div class="chart-head">
-      <h2>บันทึกการเดินเครื่อง — ช่วงเวลา 5–12 กรกฎาคม 2569</h2>
-      <div class="legend">
-        <span><i style="background:var(--red)"></i>จ่ายโหลด</span>
-        <span><i style="background:var(--grid-line)"></i>สแตนด์บาย</span>
-        <span><i style="background:var(--amber)"></i>เวลาปัจจุบัน</span>
+      <h2 id="chartTitle">บันทึกการเดินเครื่อง — ช่วงเวลา 3–12 กรกฎาคม 2569</h2>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <select id="dayFilter" class="mono" style="background:var(--bg-panel-alt);color:var(--text-primary);border:1px solid var(--border-soft);border-radius:5px;font-size:11px;padding:5px 8px;"></select>
+        <div class="legend">
+          <span><i style="background:var(--red)"></i>จ่ายโหลด</span>
+          <span><i style="background:var(--green)"></i>สแตนด์บาย</span>
+          <span><i style="background:var(--amber)"></i>เวลาปัจจุบัน</span>
+        </div>
       </div>
     </div>
     <div class="chart-days" id="chartDays"></div>
@@ -368,6 +371,7 @@ async function fetchData(){
         endStr: fMap.end ? row[fMap.end] : '',
       });
     }
+    closeImpliedIntervals(events);
     lastEvents = events;
     document.getElementById('errorBanner').style.display='none';
     document.getElementById('liveDot').classList.remove('stale');
@@ -414,6 +418,28 @@ document.getElementById('debugToggle').addEventListener('click', function(){
   p.style.display = p.style.display==='none' ? 'block' : 'none';
 });
 
+function closeImpliedIntervals(events){
+  // A "จ่ายโหลด" record with no explicit end time is drawn as an ongoing bar.
+  // But if a LATER record exists for the same location (e.g. a follow-up
+  // "standby" submission), that later record's timestamp is the real end —
+  // otherwise the bar would incorrectly stretch forward forever.
+  const byLoc = new Map();
+  events.forEach(e=>{
+    if(!e.recordTime) return;
+    if(!byLoc.has(e.loc)) byLoc.set(e.loc, []);
+    byLoc.get(e.loc).push(e);
+  });
+  byLoc.forEach(list=>{
+    list.sort((a,b)=>a.recordTime-b.recordTime);
+    for(let i=0;i<list.length-1;i++){
+      const cur = list[i];
+      if(cur.isRunning && !cur.end){
+        cur.impliedEnd = list[i+1].recordTime;
+      }
+    }
+  });
+}
+
 function currentStatus(loc, now){
   const evs = lastEvents.filter(e=>e.loc===loc && e.recordTime && e.recordTime<=now).sort((a,b)=>a.recordTime-b.recordTime);
   if(!evs.length) return {state:'gray', ev:null};
@@ -454,25 +480,66 @@ function renderPanels(now){
   });
 }
 
+let currentDayFilter = 'all';
+let viewStart = RANGE_START, viewEnd = RANGE_END;
+
+function initDayFilter(){
+  const sel = document.getElementById('dayFilter');
+  let opts = '<option value="all">ทั้งหมด (3–12 ก.ค.)</option>';
+  for(let i=0;i<RANGE_DAYS;i++){
+    const d = new Date(2026,6,3+i);
+    const iso = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    opts += '<option value="'+iso+'">วันที่ '+d.getDate()+' ก.ค. 2569</option>';
+  }
+  sel.innerHTML = opts;
+  sel.addEventListener('change', function(){
+    currentDayFilter = sel.value;
+    if(currentDayFilter==='all'){
+      viewStart = RANGE_START; viewEnd = RANGE_END;
+    }else{
+      const [y,m,d] = currentDayFilter.split('-').map(Number);
+      viewStart = new Date(y, m-1, d, 0,0,0);
+      viewEnd = new Date(y, m-1, d+1, 0,0,0);
+    }
+    render();
+  });
+}
+
 function pct(date){
-  const p = (date - RANGE_START) / (RANGE_END - RANGE_START) * 100;
+  const p = (date - viewStart) / (viewEnd - viewStart) * 100;
   return Math.max(0, Math.min(100, p));
 }
 
 function renderChart(now){
+  const isAll = currentDayFilter==='all';
+  document.getElementById('chartTitle').textContent = isAll
+    ? 'บันทึกการเดินเครื่อง — ช่วงเวลา 3–12 กรกฎาคม 2569'
+    : 'บันทึกการเดินเครื่อง — วันที่ '+viewStart.getDate()+' กรกฎาคม 2569';
   const daysEl = document.getElementById('chartDays');
   daysEl.innerHTML='';
-  for(let i=0;i<RANGE_DAYS;i++){
-    const d = new Date(2026,6,3+i);
-    const label = document.createElement('div');
-    label.className='day-label';
-    label.style.left = (i/RANGE_DAYS*100)+'%';
-    label.textContent = d.getDate()+' ก.ค.';
-    daysEl.appendChild(label);
+  const divisions = isAll ? RANGE_DAYS : 8;
+  if(isAll){
+    for(let i=0;i<RANGE_DAYS;i++){
+      const d = new Date(2026,6,3+i);
+      const label = document.createElement('div');
+      label.className='day-label';
+      label.style.left = (i/RANGE_DAYS*100)+'%';
+      label.textContent = d.getDate()+' ก.ค.';
+      daysEl.appendChild(label);
+    }
+  }else{
+    for(let i=0;i<divisions;i++){
+      const hour = i*(24/divisions);
+      const label = document.createElement('div');
+      label.className='day-label';
+      label.style.left = (i/divisions*100)+'%';
+      label.textContent = String(hour).padStart(2,'0')+':00';
+      daysEl.appendChild(label);
+    }
   }
   const stripEl = document.getElementById('stripChart');
   stripEl.innerHTML='';
-  const nowPct = (now>=RANGE_START && now<=RANGE_END) ? pct(now) : null;
+  const nowPct = (now>=viewStart && now<=viewEnd) ? pct(now) : null;
   ['wing7','rp'].forEach(g=>{
     const locs = LOCATIONS.filter(l=>l.group===g);
     const divider = document.createElement('div');
@@ -487,15 +554,18 @@ function renderChart(now){
       label.textContent = l.name;
       const track = document.createElement('div');
       track.className='strip-track';
-      lastEvents.filter(e=>e.loc===l && e.start).forEach(e=>{
+      track.style.backgroundSize = 'calc(100%/'+divisions+') 100%';
+      lastEvents.filter(e=>e.loc===l && e.start && (e.end||e.impliedEnd||now)>=viewStart && e.start<=viewEnd).forEach(e=>{
         const s = pct(e.start);
-        const eEnd = e.end || now;
+        const stillOpen = !e.end && !e.impliedEnd;
+        const eEnd = e.end || e.impliedEnd || now;
         const w = Math.max(pct(eEnd)-s, 0.4);
         const bar = document.createElement('div');
-        bar.className = 'bar' + (!e.end ? ' live' : '');
+        bar.className = 'bar' + (stillOpen ? ' live' : '');
         bar.style.left = s+'%';
         bar.style.width = w+'%';
-        bar.title = l.name+' — '+e.dateStr+' '+e.startStr+' ถึง '+(e.endStr||'ปัจจุบัน')+(e.load?(' — โหลด '+e.load):'');
+        const endLabel = e.endStr || (e.impliedEnd ? eEnd.toLocaleTimeString('th-TH') : 'ปัจจุบัน');
+        bar.title = l.name+' — '+e.dateStr+' '+e.startStr+' ถึง '+endLabel+(e.load?(' — โหลด '+e.load):'');
         track.appendChild(bar);
       });
       if(nowPct!==null){
@@ -542,10 +612,11 @@ function tickClock(){
   document.getElementById('clock').textContent = new Date().toLocaleTimeString('th-TH');
   const now = new Date();
   renderPanels(now);
-  const nowPct = (now>=RANGE_START && now<=RANGE_END) ? pct(now) : null;
-  document.querySelectorAll('.now-line').forEach(n=>{ if(nowPct!==null) n.style.left = nowPct+'%'; });
+  const nowPct = (now>=viewStart && now<=viewEnd) ? pct(now) : null;
+  document.querySelectorAll('.now-line').forEach(n=>{ if(nowPct!==null) n.style.left = nowPct+'%'; else n.style.left='-999%'; });
 }
 
+initDayFilter();
 document.getElementById('refreshBtn').addEventListener('click', fetchData);
 fetchData();
 setInterval(fetchData, REFRESH_MS);
