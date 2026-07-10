@@ -308,7 +308,7 @@ function loadSheetJSONP(){
     const script = document.createElement('script');
     script.src = url;
     script.onerror = function(){ if(!done){ cleanup(); reject(new Error('โหลดข้อมูลจากชีตไม่สำเร็จ (เช็คว่าชีตแชร์เป็น "ทุกคนที่มีลิงก์ดูได้" หรือยัง)')); } };
-    const timer = setTimeout(function(){ if(!done){ cleanup(); reject(new Error('หมดเวลาเชื่อมต่อกับชีต')); } }, 12000);
+    const timer = setTimeout(function(){ if(!done){ cleanup(); reject(new Error('หมดเวลาเชื่อมต่อกับชีต')); } }, 25000);
     document.body.appendChild(script);
   });
 }
@@ -332,7 +332,10 @@ function firstNonEmpty(row, cols){
   return '';
 }
 
+let fetchInFlight = false;
 async function fetchData(){
+  if(fetchInFlight) return;
+  fetchInFlight = true;
   try{
     const json = await loadSheetJSONP();
     if(!json || !json.table) throw new Error('รูปแบบข้อมูลจากชีตไม่ถูกต้อง');
@@ -414,13 +417,16 @@ async function fetchData(){
       document.getElementById('debugPanel').style.display='block';
     }
     render();
+    fetchInFlight = false;
   }catch(err){
     const banner = document.getElementById('errorBanner');
-    banner.textContent = 'ไม่สามารถดึงข้อมูลจากชีตได้: ' + err.message + ' — กำลังลองใหม่อัตโนมัติ';
+    banner.textContent = 'ไม่สามารถดึงข้อมูลจากชีตได้: ' + err.message + ' — กำลังลองใหม่ใน 10 วินาที';
     banner.style.display='block';
     document.getElementById('liveDot').classList.add('stale');
     document.getElementById('syncText').textContent = 'เชื่อมต่อไม่สำเร็จ';
     document.getElementById('footerSync').textContent = 'ไม่สามารถอ่านข้อมูลจากชีตได้: ' + err.message;
+    fetchInFlight = false;
+    setTimeout(fetchData, 10000);
   }
 }
 
