@@ -264,6 +264,13 @@ function norm(s){
   return String(s||'').normalize('NFC').replace(/\s+/g,'').trim();
 }
 
+function parseTimestampDatePart(ts){
+  if(!ts) return null;
+  const commaIdx = ts.indexOf(',');
+  const dateStr = commaIdx>=0 ? ts.slice(0,commaIdx).trim() : ts.trim();
+  return parseThaiDate(dateStr);
+}
+
 function matchLocation(groupText, descText){
   const g = norm(groupText);
   const d = norm(descText);
@@ -379,6 +386,9 @@ async function fetchData(){
         loc, status, isRunning, recordTime,
         ts: fMap.ts ? row[fMap.ts] : '',
         start: startDt, end: endDt,
+        endTimeOfDay: endT,
+        ownDateObj: dateObj,
+        tsDateObj: parseTimestampDatePart(fMap.ts ? row[fMap.ts] : ''),
         load: fMap.load ? row[fMap.load] : '',
         phaseA: firstNonEmpty(row, fMap.phaseACols),
         phaseB: firstNonEmpty(row, fMap.phaseBCols),
@@ -438,9 +448,14 @@ document.getElementById('debugToggle').addEventListener('click', function(){
 
 function closeImpliedIntervals(events){
   // A "จ่ายโหลด" record with no explicit end time is drawn as an ongoing bar.
-  // But if a LATER record exists for the same location (e.g. a follow-up
-  // "standby" submission), that later record's timestamp is the real end —
-  // otherwise the bar would incorrectly stretch forward forever.
+  // When a LATER record exists for the same location, that marks the real end.
+  // Prefer the later record's own explicit "เวลาปลดออกจากระบบ" time-of-day if
+  // it entered one — but the manually-picked "วันที่" date field is prone to
+  // human error (e.g. forgetting to advance it past midnight), so if combining
+  // that date with the entered time would land before the running interval
+  // even started, fall back to the auto-generated submission-timestamp's date
+  // instead, which is far more reliable. Only if no usable end-time exists at
+  // all do we fall back to the plain submission timestamp.
   const byLoc = new Map();
   events.forEach(e=>{
     if(!e.recordTime) return;
@@ -452,7 +467,18 @@ function closeImpliedIntervals(events){
     for(let i=0;i<list.length-1;i++){
       const cur = list[i];
       if(cur.isRunning && !cur.end){
-        cur.impliedEnd = list[i+1].recordTime;
+        const nxt = list[i+1];
+        let candidate = null;
+        if(nxt.endTimeOfDay){
+          candidate = combine(nxt.ownDateObj, nxt.endTimeOfDay);
+          if(!candidate || candidate<=cur.start){
+            candidate = combine(nxt.tsDateObj, nxt.endTimeOfDay);
+          }
+          if(candidate && candidate<=cur.start){
+            candidate = null;
+          }
+        }
+        cur.impliedEnd = candidate || nxt.recordTime;
       }
     }
   });
