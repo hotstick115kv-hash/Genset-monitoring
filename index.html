@@ -60,6 +60,29 @@
     cursor:pointer;margin-left:8px;
   }
   #refreshBtn:hover{border-color:var(--teal);color:var(--teal);}
+  #settingsBtn{
+    background:none;border:1px solid var(--border-soft);color:var(--text-secondary);
+    font-family:'IBM Plex Sans Thai',sans-serif;font-size:11px;padding:4px 10px;border-radius:4px;
+    cursor:pointer;margin-left:8px;
+  }
+  #settingsBtn:hover{border-color:var(--teal);color:var(--teal);}
+  .settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;}
+  .settings-grid label, label.cfg-textarea-label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--text-secondary);}
+  .cfg-input{
+    background:var(--bg-panel-alt);border:1px solid var(--border-soft);color:var(--text-primary);
+    border-radius:5px;padding:7px 9px;font-size:12px;font-family:'IBM Plex Mono',monospace;
+  }
+  .cfg-textarea{
+    background:var(--bg-panel-alt);border:1px solid var(--border-soft);color:var(--text-primary);
+    border-radius:5px;padding:9px;font-size:11px;font-family:'IBM Plex Mono',monospace;
+    width:100%;height:220px;margin-top:5px;resize:vertical;
+  }
+  .cfg-btn{
+    background:var(--bg-panel-alt);border:1px solid var(--border-soft);color:var(--text-secondary);
+    font-size:12px;padding:8px 16px;border-radius:5px;cursor:pointer;
+  }
+  .cfg-btn.primary{background:rgba(79,209,197,0.12);border-color:var(--teal);color:var(--teal);}
+  .cfg-btn:hover{filter:brightness(1.2);}
 
   #errorBanner{
     display:none;background:var(--red-bg);border:1px solid var(--red);color:var(--red-text);
@@ -154,9 +177,9 @@
         <path d="M23.5 7 L13 23 H19.5 L17.5 35 L29 18 H22.5 Z" fill="var(--amber)"/>
       </svg>
       <div class="title-block">
-        <p class="eyebrow">Genset monitoring — ภารกิจรับเสด็จฯ 3–12 ก.ค. 2569</p>
+        <p class="eyebrow" id="eyebrowText">Genset monitoring — ภารกิจรับเสด็จฯ 3–12 ก.ค. 2569</p>
         <h1>สถานะเครื่องกำเนิดไฟฟ้าสำรอง</h1>
-        <p>การไฟฟ้าส่วนภูมิภาค (กฟภ.) &middot; กองบิน 7 และ เขื่อนรัชชประภา</p>
+        <p id="subtitleText">การไฟฟ้าส่วนภูมิภาค (กฟภ.) &middot; กองบิน 7 และ เขื่อนรัชชประภา</p>
       </div>
     </div>
     <div class="sync-block">
@@ -165,9 +188,40 @@
         <span class="dot-live" id="liveDot"></span>
         <span id="syncText">กำลังเชื่อมต่อ...</span>
         <button id="refreshBtn">รีเฟรช</button>
+        <button id="settingsBtn" title="ตั้งค่า">⚙ ตั้งค่า</button>
       </div>
     </div>
   </header>
+
+  <section id="settingsPanel" class="log-section" style="display:none;margin-bottom:20px;">
+    <h2>ตั้งค่าภารกิจ</h2>
+    <div class="empty-note" style="margin-bottom:10px;">
+      ระบบจะโหลดค่าเหล่านี้จากแท็บ "ตั้งค่า" และ "รายชื่อสถานที่" ในชีตก่อนเสมอ (ใช้ร่วมกันได้ทุกเครื่อง) —
+      การแก้ไขในหน้านี้จะถูกเก็บไว้ในเบราว์เซอร์นี้เพียงชั่วคราว และจะถูกค่าจากชีตทับเมื่อโหลดครั้งถัดไปหากชีตมีข้อมูลแล้ว
+    </div>
+    <div class="settings-grid">
+      <label>คำอธิบายใต้หัวเรื่อง
+        <input type="text" id="cfgSubtitle" class="cfg-input">
+      </label>
+      <label>วันที่เริ่มภารกิจ
+        <input type="date" id="cfgStart" class="cfg-input">
+      </label>
+      <label>วันที่สิ้นสุดภารกิจ
+        <input type="date" id="cfgEnd" class="cfg-input">
+      </label>
+      <label>คำที่ระบุว่า "กำลังเดินเครื่อง" ในฟอร์ม
+        <input type="text" id="cfgKeyword" class="cfg-input">
+      </label>
+    </div>
+    <label style="display:block;margin-top:14px;">รายการสถานที่ (แก้ไขขั้นสูง — รูปแบบ JSON: group, groupLabel, name, kw, key)
+      <textarea id="cfgLocations" class="cfg-textarea" spellcheck="false"></textarea>
+    </label>
+    <div id="cfgError" style="display:none;color:var(--red-text);font-size:12px;margin-top:6px;"></div>
+    <div style="margin-top:12px;display:flex;gap:10px;">
+      <button id="cfgSaveBtn" class="cfg-btn primary">บันทึกและใช้งาน</button>
+      <button id="cfgResetBtn" class="cfg-btn">รีเซ็ตเป็นค่าเริ่มต้น</button>
+    </div>
+  </section>
 
   <div id="errorBanner"></div>
 
@@ -179,7 +233,7 @@
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
         <select id="dayFilter" class="mono" style="background:var(--bg-panel-alt);color:var(--text-primary);border:1px solid var(--border-soft);border-radius:5px;font-size:11px;padding:5px 8px;"></select>
         <div class="legend">
-          <span><i style="background:var(--red)"></i>จ่ายโหลด</span>
+          <span><i style="background:var(--red)"></i><span id="legendRunningLabel">จ่ายโหลด</span></span>
           <span><i style="background:var(--green)"></i>สแตนด์บาย</span>
           <span><i style="background:var(--amber)"></i>เวลาปัจจุบัน</span>
         </div>
@@ -212,17 +266,16 @@ const SHEET_ID = '1llqDzsCGOApQzd_csvtZIjDn8B9z36inRCrOWsyJ4QY';
 const SHEET_NAME = 'บันทึกข้อมูลเดินGen';
 const SHEET_GID = '270692759'; // แท็บ "บันทึกข้อมูลเดินGen" (ยืนยันจากผู้ใช้)
 const REFRESH_MS = 60000;
+const CONFIG_KEY = 'gensetDashboardConfig';
 
-const RANGE_START = new Date(2026,6,3,0,0,0);
-const RANGE_END = new Date(2026,6,13,0,0,0);
-const RANGE_DAYS = 10;
+// ตั้งค่า 2 แท็บนี้ในชีตเดียวกัน แล้วใส่ gid ที่ได้ตรงนี้ เพื่อให้การตั้งค่ากลาง
+// ใช้ร่วมกันได้ทุกเครื่อง/ทุกเบราว์เซอร์ (แทนการเก็บแค่ในเบราว์เซอร์เครื่องเดียว)
+const CONFIG_SHEET_NAME = 'ตั้งค่า';
+const CONFIG_SHEET_GID = '1369744555';
+const LOCATIONS_SHEET_NAME = 'รายชื่อสถานที่';
+const LOCATIONS_SHEET_GID = '1436403436';
 
-/* วิธีเพิ่มเครื่องกำเนิดไฟฟ้าจุดใหม่:
-   1. เพิ่มแถวใหม่ในรายการด้านล่าง คัดลอกรูปแบบ {group, groupLabel, name, kw, key}
-   2. group ใช้ 'wing7' หรือ 'rp' (หรือตั้งกลุ่มใหม่เอง แล้วเพิ่มชื่อกลุ่มใน renderPanels/renderChart ที่ loop ['wing7','rp'])
-   3. key ต้องเป็นคำที่ไม่ซ้ำกับจุดอื่น และตรงกับข้อความที่กรอกในฟอร์ม (เช่น ชื่อหน่วยงาน กฟฟ.) เพื่อให้ระบบจับคู่ข้อมูลจากฟอร์มได้ถูกต้อง
-   4. บันทึกไฟล์แล้วเปิดใหม่ ไม่ต้องแก้ไขส่วนอื่น */
-const LOCATIONS = [
+const DEFAULT_LOCATIONS = [
   {group:'wing7', groupLabel:'ณ. กองบิน 7', name:'อาคารทรงงาน', kw:300, key:'ตะกั่วป่า'},
   {group:'wing7', groupLabel:'ณ. กองบิน 7', name:'อาคารปฏิบัติการร่วม', kw:500, key:'กฟน.3'},
   {group:'wing7', groupLabel:'ณ. กองบิน 7', name:'โรงเก็บ บ.', kw:300, key:'ทุ่งสง'},
@@ -237,6 +290,91 @@ const LOCATIONS = [
   {group:'rp', groupLabel:'ณ. เขื่อนรัชชประภา', name:'ตามหมายเสด็จเร่งด่วน', kw:60, key:'ไชยา'},
   {group:'rp', groupLabel:'ณ. เขื่อนรัชชประภา', name:'สนามกอล์ฟ', kw:500, key:'กฟน.1'},
 ];
+const DEFAULT_CONFIG = {
+  subtitle: 'การไฟฟ้าส่วนภูมิภาค (กฟภ.) · กองบิน 7 และ เขื่อนรัชชประภา',
+  rangeStart: '2026-07-03',
+  rangeEnd: '2026-07-12',
+  runningKeyword: 'จ่ายโหลด',
+  locations: DEFAULT_LOCATIONS,
+};
+
+function loadConfig(){
+  try{
+    const raw = localStorage.getItem(CONFIG_KEY);
+    if(!raw) return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+    const parsed = JSON.parse(raw);
+    return Object.assign({}, DEFAULT_CONFIG, parsed);
+  }catch(e){
+    return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  }
+}
+function saveConfig(cfg){
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
+}
+
+async function loadRemoteConfig(){
+  let remoteCfg = null, remoteLocs = null;
+  const candidates = [CONFIG_SHEET_GID, LOCATIONS_SHEET_GID].filter(Boolean);
+  for(const gid of candidates){
+    let parsed;
+    try{
+      parsed = gvizJsonToRows(await loadSheetJSONP(gid, null));
+    }catch(e){ continue; }
+    const {fields, rows} = parsed;
+    if(!fields.length) continue;
+    const keyCol = findField(fields,'คีย์');
+    const valCol = findField(fields,'ค่า');
+    const gCol = findField(fields,'group');
+    const nCol = findField(fields,'name');
+    const kwCol = findField(fields,'kw');
+    const keyCol2 = findField(fields,'key');
+    if(keyCol && valCol && !remoteCfg){
+      // This gid holds the key/value settings tab
+      const map = {};
+      rows.forEach(r=>{ const k=(r[keyCol]||'').trim(); if(k) map[k]=r[valCol]; });
+      remoteCfg = {
+        subtitle: map.subtitle || DEFAULT_CONFIG.subtitle,
+        rangeStart: map.rangeStart || DEFAULT_CONFIG.rangeStart,
+        rangeEnd: map.rangeEnd || DEFAULT_CONFIG.rangeEnd,
+        runningKeyword: map.runningKeyword || DEFAULT_CONFIG.runningKeyword,
+      };
+    }else if(gCol && nCol && kwCol && keyCol2 && !remoteLocs){
+      // This gid holds the locations table
+      const glCol = findField(fields,'groupLabel');
+      const locs = rows.filter(r=>r[nCol]).map(r=>({
+        group: r[gCol], groupLabel: r[glCol]||r[gCol], name: r[nCol],
+        kw: parseFloat(String(r[kwCol]).replace(/[^0-9.]/g,''))||0,
+        key: r[keyCol2]
+      }));
+      if(locs.length) remoteLocs = locs;
+    }
+  }
+
+  if(remoteCfg || remoteLocs){
+    CONFIG = Object.assign({}, CONFIG, remoteCfg||{}, remoteLocs ? {locations:remoteLocs} : {});
+    saveConfig(CONFIG); // cache locally as an offline fallback for next load
+    LOCATIONS = CONFIG.locations;
+    RUNNING_KEYWORD = CONFIG.runningKeyword;
+    RANGE_START = isoToDate(CONFIG.rangeStart, false);
+    RANGE_END = isoToDate(CONFIG.rangeEnd, true);
+    RANGE_DAYS = Math.max(1, Math.round((RANGE_END-RANGE_START)/86400000));
+    return true;
+  }
+  return false;
+}
+
+let CONFIG = loadConfig();
+let LOCATIONS = CONFIG.locations;
+let RUNNING_KEYWORD = CONFIG.runningKeyword;
+
+function isoToDate(iso, endOfDayPlusOne){
+  const [y,m,d] = iso.split('-').map(Number);
+  return endOfDayPlusOne ? new Date(y, m-1, d+1, 0,0,0) : new Date(y, m-1, d, 0,0,0);
+}
+
+let RANGE_START = isoToDate(CONFIG.rangeStart, false);
+let RANGE_END = isoToDate(CONFIG.rangeEnd, true);
+let RANGE_DAYS = Math.round((RANGE_END-RANGE_START)/86400000);
 
 function parseThaiDate(str){
   if(!str) return null;
@@ -295,7 +433,7 @@ function parseTimestamp(ts){
 
 let lastEvents = [];
 
-function loadSheetJSONP(){
+function loadSheetJSONP(gid, name){
   return new Promise((resolve,reject)=>{
     const cbName = 'gvizCB_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
     let done = false;
@@ -303,7 +441,7 @@ function loadSheetJSONP(){
     window[cbName] = function(json){
       done = true; cleanup(); resolve(json);
     };
-    const sheetParam = SHEET_GID ? ('gid='+encodeURIComponent(SHEET_GID)) : ('sheet='+encodeURIComponent(SHEET_NAME));
+    const sheetParam = gid ? ('gid='+encodeURIComponent(gid)) : ('sheet='+encodeURIComponent(name));
     const url = 'https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:json;responseHandler:'+cbName+'&'+sheetParam+'&headers=1&_='+Date.now();
     const script = document.createElement('script');
     script.src = url;
@@ -311,6 +449,18 @@ function loadSheetJSONP(){
     const timer = setTimeout(function(){ if(!done){ cleanup(); reject(new Error('หมดเวลาเชื่อมต่อกับชีต')); } }, 25000);
     document.body.appendChild(script);
   });
+}
+
+function gvizJsonToRows(json){
+  if(!json || !json.table) return {fields:[], rows:[]};
+  const cols = json.table.cols || [];
+  const fields = cols.map(c=>c.label || c.id || '');
+  const rows = (json.table.rows || []).map(r=>{
+    const obj = {};
+    fields.forEach((label,i)=>{ obj[label] = cellText(r, fields, i); });
+    return obj;
+  });
+  return {fields, rows};
 }
 
 function cellText(row, fields, i){
@@ -337,7 +487,7 @@ async function fetchData(){
   if(fetchInFlight) return;
   fetchInFlight = true;
   try{
-    const json = await loadSheetJSONP();
+    const json = await loadSheetJSONP(SHEET_GID, SHEET_NAME);
     if(!json || !json.table) throw new Error('รูปแบบข้อมูลจากชีตไม่ถูกต้อง');
     const cols = json.table.cols || [];
     const fields = cols.map(c=>c.label || c.id || '');
@@ -381,7 +531,7 @@ async function fetchData(){
       const startT = parseTime(fMap.start ? row[fMap.start] : null);
       const endT = parseTime(fMap.end ? row[fMap.end] : null);
       const status = fMap.status ? (row[fMap.status]||'').trim() : '';
-      const isRunning = status ? status.includes('จ่ายโหลด') : /จ่ายโหลด/.test(fullRowText) && !/standby/i.test(status);
+      const isRunning = status ? status.includes(RUNNING_KEYWORD) : new RegExp(RUNNING_KEYWORD).test(fullRowText) && !/standby/i.test(status);
       const startDt = isRunning ? combine(dateObj, startT) : null;
       const endDt = isRunning && endT ? combine(dateObj, endT) : null;
       const recordTime = parseTimestamp(fMap.ts ? row[fMap.ts] : '') || startDt || dateObj && combine(dateObj,null);
@@ -497,11 +647,18 @@ function currentStatus(loc, now){
   return {state: latest.isRunning ? 'red' : 'green', ev: latest};
 }
 
+function getGroups(){
+  const seen = [];
+  LOCATIONS.forEach(l=>{ if(!seen.includes(l.group)) seen.push(l.group); });
+  return seen;
+}
+
 function renderPanels(now){
   const panelsEl = document.getElementById('panels');
   panelsEl.innerHTML='';
-  ['wing7','rp'].forEach(g=>{
+  getGroups().forEach(g=>{
     const locs = LOCATIONS.filter(l=>l.group===g);
+    if(!locs.length) return;
     const label = locs[0].groupLabel;
     const totalKw = locs.reduce((s,l)=>s+l.kw,0);
     const panel = document.createElement('div');
@@ -510,7 +667,7 @@ function renderPanels(now){
     locs.forEach(l=>{
       const st = currentStatus(l, now);
       const pillClass = st.state;
-      const pillText = st.state==='red' ? 'กำลังจ่ายโหลด' : st.state==='green' ? 'สแตนด์บาย' : 'ยังไม่มีข้อมูล';
+      const pillText = st.state==='red' ? ('กำลัง'+RUNNING_KEYWORD) : st.state==='green' ? 'สแตนด์บาย' : 'ยังไม่มีข้อมูล';
       const loadVal = (st.state==='red' && st.ev && st.ev.load) ? parseFloat(String(st.ev.load).replace(/[^0-9.]/g,'')) : null;
       const pctUsed = (loadVal!=null && l.kw) ? Math.min(100, (loadVal/l.kw*100)) : 0;
       const barColor = pctUsed>=90 ? 'var(--amber)' : 'var(--red)';
@@ -544,15 +701,25 @@ function renderPanels(now){
 let currentDayFilter = 'all';
 let viewStart = RANGE_START, viewEnd = RANGE_END;
 
+const THAI_MONTHS_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const THAI_MONTHS_LONG = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+function thaiShort(d){ return d.getDate()+' '+THAI_MONTHS_SHORT[d.getMonth()]; }
+function thaiLong(d){ return d.getDate()+' '+THAI_MONTHS_LONG[d.getMonth()]+' '+(d.getFullYear()+543); }
+function rangeLabelText(){
+  return thaiShort(RANGE_START)+'–'+thaiShort(new Date(RANGE_END-86400000))+' '+(RANGE_START.getFullYear()+543);
+}
+
 function initDayFilter(){
   const sel = document.getElementById('dayFilter');
-  let opts = '<option value="all">ทั้งหมด (3–12 ก.ค.)</option>';
+  let opts = '<option value="all">ทั้งหมด ('+rangeLabelText()+')</option>';
   for(let i=0;i<RANGE_DAYS;i++){
-    const d = new Date(2026,6,3+i);
+    const d = new Date(RANGE_START.getFullYear(), RANGE_START.getMonth(), RANGE_START.getDate()+i);
     const iso = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-    opts += '<option value="'+iso+'">วันที่ '+d.getDate()+' ก.ค. 2569</option>';
+    opts += '<option value="'+iso+'">วันที่ '+thaiShort(d)+' '+(d.getFullYear()+543)+'</option>';
   }
   sel.innerHTML = opts;
+  currentDayFilter = 'all';
+  viewStart = RANGE_START; viewEnd = RANGE_END;
   sel.addEventListener('change', function(){
     currentDayFilter = sel.value;
     if(currentDayFilter==='all'){
@@ -574,18 +741,18 @@ function pct(date){
 function renderChart(now){
   const isAll = currentDayFilter==='all';
   document.getElementById('chartTitle').textContent = isAll
-    ? 'บันทึกการเดินเครื่อง — ช่วงเวลา 3–12 กรกฎาคม 2569'
-    : 'บันทึกการเดินเครื่อง — วันที่ '+viewStart.getDate()+' กรกฎาคม 2569';
+    ? ('บันทึกการเดินเครื่อง — ช่วงเวลา '+rangeLabelText())
+    : ('บันทึกการเดินเครื่อง — วันที่ '+thaiLong(viewStart));
   const daysEl = document.getElementById('chartDays');
   daysEl.innerHTML='';
   const divisions = isAll ? RANGE_DAYS : 8;
   if(isAll){
     for(let i=0;i<RANGE_DAYS;i++){
-      const d = new Date(2026,6,3+i);
+      const d = new Date(RANGE_START.getFullYear(), RANGE_START.getMonth(), RANGE_START.getDate()+i);
       const label = document.createElement('div');
       label.className='day-label';
       label.style.left = (i/RANGE_DAYS*100)+'%';
-      label.textContent = d.getDate()+' ก.ค.';
+      label.textContent = thaiShort(d);
       daysEl.appendChild(label);
     }
   }else{
@@ -601,8 +768,9 @@ function renderChart(now){
   const stripEl = document.getElementById('stripChart');
   stripEl.innerHTML='';
   const nowPct = (now>=viewStart && now<=viewEnd) ? pct(now) : null;
-  ['wing7','rp'].forEach(g=>{
+  getGroups().forEach(g=>{
     const locs = LOCATIONS.filter(l=>l.group===g);
+    if(!locs.length) return;
     const divider = document.createElement('div');
     divider.className='group-divider';
     divider.textContent = locs[0].groupLabel;
@@ -615,6 +783,7 @@ function renderChart(now){
       label.textContent = l.name;
       const track = document.createElement('div');
       track.className='strip-track';
+      track.style.backgroundSize = (100/divisions)+'% 100%';
       track.style.backgroundSize = 'calc(100%/'+divisions+') 100%';
       lastEvents.filter(e=>e.loc===l && e.start && (e.end||e.impliedEnd||now)>=viewStart && e.start<=viewEnd).forEach(e=>{
         const s = pct(e.start);
@@ -653,7 +822,7 @@ function renderLog(){
     + '<th>วันที่</th><th>สถานที่</th><th>สถานะ</th><th>เวลาจ่ายโหลด</th><th>เวลาปลด</th><th>โหลด</th><th>หมายเหตุ</th>'
     + '</tr></thead><tbody>';
   sorted.forEach(e=>{
-    const badge = e.isRunning ? '<span class="badge-inline red">จ่ายโหลด</span>' : '<span class="badge-inline green">สแตนด์บาย</span>';
+    const badge = e.isRunning ? ('<span class="badge-inline red">'+RUNNING_KEYWORD+'</span>') : '<span class="badge-inline green">สแตนด์บาย</span>';
     html += '<tr><td>'+(e.dateStr||'-')+'</td><td class="name">'+e.loc.name+' ('+e.loc.groupLabel.replace('ณ. ','')+')</td>'
       + '<td>'+badge+'</td><td>'+(e.startStr||'-')+'</td><td>'+(e.endStr||'-')+'</td>'
       + '<td>'+(e.load||'-')+'</td><td>'+(e.note||'-')+'</td></tr>';
@@ -677,11 +846,90 @@ function tickClock(){
   document.querySelectorAll('.now-line').forEach(n=>{ if(nowPct!==null) n.style.left = nowPct+'%'; else n.style.left='-999%'; });
 }
 
-initDayFilter();
-document.getElementById('refreshBtn').addEventListener('click', fetchData);
-fetchData();
-setInterval(fetchData, REFRESH_MS);
-setInterval(tickClock, 1000);
+function applyDynamicLabels(){
+  document.getElementById('eyebrowText').textContent = 'Genset monitoring — ภารกิจรับเสด็จฯ '+rangeLabelText();
+  document.getElementById('subtitleText').textContent = CONFIG.subtitle;
+  document.getElementById('legendRunningLabel').textContent = RUNNING_KEYWORD;
+}
+
+function populateSettingsForm(){
+  document.getElementById('cfgSubtitle').value = CONFIG.subtitle;
+  document.getElementById('cfgStart').value = CONFIG.rangeStart;
+  document.getElementById('cfgEnd').value = CONFIG.rangeEnd;
+  document.getElementById('cfgKeyword').value = CONFIG.runningKeyword;
+  document.getElementById('cfgLocations').value = JSON.stringify(LOCATIONS, null, 2);
+  document.getElementById('cfgError').style.display = 'none';
+}
+
+function applyConfigAndRefresh(){
+  LOCATIONS = CONFIG.locations;
+  RUNNING_KEYWORD = CONFIG.runningKeyword;
+  RANGE_START = isoToDate(CONFIG.rangeStart, false);
+  RANGE_END = isoToDate(CONFIG.rangeEnd, true);
+  RANGE_DAYS = Math.max(1, Math.round((RANGE_END-RANGE_START)/86400000));
+  applyDynamicLabels();
+  initDayFilter();
+  fetchData();
+}
+
+function initSettingsPanel(){
+  const panel = document.getElementById('settingsPanel');
+  populateSettingsForm();
+  document.getElementById('settingsBtn').addEventListener('click', function(){
+    populateSettingsForm();
+    panel.style.display = panel.style.display==='none' ? 'block' : 'none';
+  });
+  document.getElementById('cfgSaveBtn').addEventListener('click', function(){
+    const errEl = document.getElementById('cfgError');
+    errEl.style.display = 'none';
+    const subtitle = document.getElementById('cfgSubtitle').value.trim() || DEFAULT_CONFIG.subtitle;
+    const startStr = document.getElementById('cfgStart').value;
+    const endStr = document.getElementById('cfgEnd').value;
+    const keyword = document.getElementById('cfgKeyword').value.trim() || DEFAULT_CONFIG.runningKeyword;
+    if(!startStr || !endStr || startStr>endStr){
+      errEl.textContent = 'กรุณาระบุวันที่เริ่มและวันที่สิ้นสุดให้ถูกต้อง (วันเริ่มต้องไม่เกินวันสิ้นสุด)';
+      errEl.style.display = 'block';
+      return;
+    }
+    let locs;
+    try{
+      locs = JSON.parse(document.getElementById('cfgLocations').value);
+      if(!Array.isArray(locs) || !locs.length) throw new Error('ต้องเป็น array ที่มีอย่างน้อย 1 รายการ');
+      locs.forEach(l=>{
+        if(!l.group || !l.groupLabel || !l.name || !l.key || typeof l.kw!=='number'){
+          throw new Error('แต่ละรายการต้องมี group, groupLabel, name, kw (ตัวเลข), key ครบทุกช่อง');
+        }
+      });
+    }catch(e){
+      errEl.textContent = 'รูปแบบ JSON ของรายการสถานที่ไม่ถูกต้อง: ' + e.message;
+      errEl.style.display = 'block';
+      return;
+    }
+    CONFIG = {subtitle, rangeStart:startStr, rangeEnd:endStr, runningKeyword:keyword, locations:locs};
+    saveConfig(CONFIG);
+    applyConfigAndRefresh();
+    panel.style.display = 'none';
+  });
+  document.getElementById('cfgResetBtn').addEventListener('click', function(){
+    if(!confirm('รีเซ็ตการตั้งค่าทั้งหมดกลับเป็นค่าเริ่มต้น?')) return;
+    localStorage.removeItem(CONFIG_KEY);
+    CONFIG = JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+    saveConfig(CONFIG);
+    populateSettingsForm();
+    applyConfigAndRefresh();
+  });
+}
+
+(async function init(){
+  await loadRemoteConfig();
+  initSettingsPanel();
+  applyDynamicLabels();
+  initDayFilter();
+  document.getElementById('refreshBtn').addEventListener('click', fetchData);
+  fetchData();
+  setInterval(fetchData, REFRESH_MS);
+  setInterval(tickClock, 1000);
+})();
 </script>
 </body>
 </html>
